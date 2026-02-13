@@ -7,7 +7,8 @@ class Config:
     FS: int = 512
     PRE_WINDOW_S: float = 2.0
     POST_WINDOW_S: float = 2.0
-    RAW_DATA_PATH: Path = Path("data/raw")
+    RAW_DATA_PATH_POSITIVE: Path = Path("data/raw/Positive_Transformed")
+    RAW_DATA_PATH_NEGATIVE: Path = Path("data/raw/Negative_Transformed")
     PROCESSED_DATA_PATH: Path = Path("data/processed")
     RANDOM_STATE: int = 42
 
