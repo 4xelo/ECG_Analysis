@@ -1,9 +1,8 @@
 import itertools
 from src.config import config
 from src.data_loader import ECGLoader
-# 1. Importujeme naše nové preprocessing triedy
 from src.preprocessing import ButterworthFilter, PanTompkinsDetector, RCenteredSegmenter
-
+from src.visualizations import ECGPlotter
 
 def main():
     # 1. Vytvorenie dvoch explicitných loaderov
@@ -13,13 +12,12 @@ def main():
     # 3. Inicializácia preprocessing komponentov (VŽDY PRED CYKLOM!)
     ecg_filter = ButterworthFilter(lowcut=0.5, highcut=40.0, order=4)
     peak_detector = PanTompkinsDetector()
-
-    # Segmenter si berie nastavenie okien priamo z configu
     segmenter = RCenteredSegmenter(
         pre_window_s=config.PRE_WINDOW_S,
         post_window_s=config.POST_WINDOW_S,
         fs=config.FS
     )
+    plotter = ECGPlotter(fs=config.FS)
 
     # 4. Spojenie generátorov do jedného súvislého prúdu (pipeline)
     all_records = itertools.chain(
@@ -56,6 +54,48 @@ def main():
             prvy_segment_signal, prvy_r_peak_idx = segments[0]
             print(f"  -> Ukážka 1. segmentu: stred v R-vrchole index {prvy_r_peak_idx}, "
                   f"dĺžka poľa: {len(prvy_segment_signal)} vzoriek\n")
+
+            # ==========================================
+            # VIZUALIZÁCIA (Len pre 1. pacienta v teste)
+            # ==========================================
+            if iter == 0:
+                print(" [*] Generujem vizualizácie pre prvý záznam...")
+                # 1. Porovnáme Raw a Filtrovaný signál (prvých 10 sekúnd)
+                plotter.plot_raw_vs_filtered(
+                    raw_signal=record.signal,
+                    filtered_signal=clean_signal,
+                    start_s=10, end_s=14.0,
+                    title=f"Filtrácia: {record.filename}"
+                )
+
+                # 2. Skontrolujeme, či detektor triafa R-vrcholy
+                plotter.plot_peaks_on_signal(
+                    signal=clean_signal,
+                    r_peaks=r_peaks,
+                    start_s=10.0, end_s=14.0,
+                    title=f"Detekcia R-vrcholov: {record.filename}"
+                )
+
+                # --- Vizualizácia prvých 3 vyrezaných segmentov ---
+                if len(segments) >= 3:
+                    print(" [*] Vykresľujem prvé 3 segmenty z tohto pacienta...")
+                    for i in range(3):
+                        segment_signal, original_idx = segments[i]
+
+                        # R-vrchol je vždy config.PRE_SAMPLES vzoriek od začiatku segmentu
+                        relativny_index_r_vrcholu = config.PRE_SAMPLES
+
+                        # VÝPOČET REÁLNEHO ČASU ZAČIATKU
+                        # Odpočítame vzorky pred vrcholom a vydelíme frekvenciou
+                        realny_start_s = (original_idx - config.PRE_SAMPLES) / config.FS
+
+                        plotter.plot_segment(
+                            segment=segment_signal,
+                            title=f"Segment {i + 1} zo súboru {record.filename}",
+                            r_peak_idx_in_segment=relativny_index_r_vrcholu,
+                            start_time_s=realny_start_s  # Odovzdáme reálny čas plotteru
+                        )
+            # ==========================================
 
         # Predčasné ukončenie pre účely testovania
         iter += 1
