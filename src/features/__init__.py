@@ -6,6 +6,8 @@ from .wavelet import WaveletFeatures
 from .entropy import EntropyFeatures
 from .pipeline import FeatureExtractionPipeline
 from .morphology import MorphologyFeatures
+from .poincare import PoincareFeatures
+from .hjorth import HjorthFeatures
 
 __all__ = [
     "BaseFeatureExtractor",
@@ -15,5 +17,7 @@ __all__ = [
     "WaveletFeatures",
     "EntropyFeatures",
     "MorphologyFeatures",
+    "PoincareFeatures",
+    "HjorthFeatures",
     "FeatureExtractionPipeline"
 ]

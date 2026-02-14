@@ -10,6 +10,8 @@ from .entropy import EntropyFeatures
 from .hrv_metrics import HRVFeatures
 from .wavelet import WaveletFeatures
 from .morphology import MorphologyFeatures
+from .hjorth import HjorthFeatures
+from .poincare import PoincareFeatures
 
 # Nastavenie loggera
 logger = logging.getLogger(__name__)
@@ -73,5 +75,7 @@ class FeatureExtractionPipeline:
             EntropyFeatures(m=2, r_factor=0.2),
             HRVFeatures(),
             WaveletFeatures(wavelet_name="db4", level=3),
-            MorphologyFeatures()
+            MorphologyFeatures(),
+            # HjorthFeatures(),
+            # PoincareFeatures()
         ])
