@@ -1,8 +1,11 @@
 import itertools
+import pandas as pd
 from src.config import config
 from src.data_loader import ECGLoader
 from src.preprocessing import ButterworthFilter, PanTompkinsDetector, RCenteredSegmenter
 from src.visualizations import ECGPlotter
+from src.features import FeatureExtractionPipeline
+
 
 def main():
     # 1. Vytvorenie dvoch explicitných loaderov
@@ -25,12 +28,16 @@ def main():
         loader_neg.load_all(extension="*.csv")
     )
 
+    # Vytvorenie pipeline na extrakciu priznakov
+    feature_pipeline = FeatureExtractionPipeline.create_default_pipeline()
+
     # 5. Jednotný cyklus pre spracovanie VŠETKÝCH dát
     print("Spúšťam pipeline na spracovanie EKG záznamov...\n")
 
     # Pomocné premenné pre testovanie
     test_limit = 3
     iter = 0
+    dataset_rows = []
 
     for record in all_records:
         print(f"--- Spracúvam: {record.filename} | Label: {record.label} ---")
@@ -49,6 +56,18 @@ def main():
         print(f" [*] Detegovaných R-vrcholov: {len(r_peaks)}")
         print(f" [*] Úspešne vyrezaných segmentov: {len(segments)}")
 
+
+        for segment_signal, r_idx in segments:
+        # 2. Extrakcia VŠETKÝCH príznakov naraz
+            features = feature_pipeline.process_segment(segment_signal, config.FS)
+
+            # Pridáme metadáta (aby sme vedeli, koho to je a aký má label)
+            features["filename"] = record.filename
+            features["label"] = record.label
+            features["original_r_peak"] = r_idx
+
+            dataset_rows.append(features)
+
         # Ak chceme vidieť, čo presne segment obsahuje (ukážeme prvý segment z pacienta)
         if segments:
             prvy_segment_signal, prvy_r_peak_idx = segments[0]
@@ -56,52 +75,40 @@ def main():
                   f"dĺžka poľa: {len(prvy_segment_signal)} vzoriek\n")
 
             # ==========================================
-            # VIZUALIZÁCIA (Len pre 1. pacienta v teste)
+            # VIZUALIZÁCIA KONKRÉTNEHO R-VRCHOLU (PODĽA ID)
             # ==========================================
-            if iter == 0:
-                print(" [*] Generujem vizualizácie pre prvý záznam...")
-                # 1. Porovnáme Raw a Filtrovaný signál (prvých 10 sekúnd)
-                plotter.plot_raw_vs_filtered(
-                    raw_signal=record.signal,
-                    filtered_signal=clean_signal,
-                    start_s=10, end_s=14.0,
-                    title=f"Filtrácia: {record.filename}"
+
+            if iter == 2:
+
+                # --- TU ZADAJ HODNOTU 'original_r_peak', KTORÚ CHCEŠ VIDIEŤ ---
+                TARGET_R_PEAK = 132467
+                # --------------------------------------------------------------
+
+                print(f" [*] Hľadám segment pre R-vrchol s indexom: {TARGET_R_PEAK}...")
+
+                plotter.browse_signal(
+                    signal=clean_signal,  # Celý filtrovaný signál
+                    r_peaks=r_peaks,  # Všetky R-vrcholy
+                    start_s=250.0,  # Začiatok (napr. kde sa ti niečo nezdá)
+                    end_s=271.0,  # Koniec
+                    window_s=3.0  # Veľkosť kroku (zoom)
                 )
 
-                # 2. Skontrolujeme, či detektor triafa R-vrcholy
-                plotter.plot_peaks_on_signal(
-                    signal=clean_signal,
-                    r_peaks=r_peaks,
-                    start_s=10.0, end_s=14.0,
-                    title=f"Detekcia R-vrcholov: {record.filename}"
-                )
-
-                # --- Vizualizácia prvých 3 vyrezaných segmentov ---
-                if len(segments) >= 3:
-                    print(" [*] Vykresľujem prvé 3 segmenty z tohto pacienta...")
-                    for i in range(3):
-                        segment_signal, original_idx = segments[i]
-
-                        # R-vrchol je vždy config.PRE_SAMPLES vzoriek od začiatku segmentu
-                        relativny_index_r_vrcholu = config.PRE_SAMPLES
-
-                        # VÝPOČET REÁLNEHO ČASU ZAČIATKU
-                        # Odpočítame vzorky pred vrcholom a vydelíme frekvenciou
-                        realny_start_s = (original_idx - config.PRE_SAMPLES) / config.FS
-
-                        plotter.plot_segment(
-                            segment=segment_signal,
-                            title=f"Segment {i + 1} zo súboru {record.filename}",
-                            r_peak_idx_in_segment=relativny_index_r_vrcholu,
-                            start_time_s=realny_start_s  # Odovzdáme reálny čas plotteru
-                        )
+                print(" [*] Prehliadanie dokončené, pokračujem v pipeline...")
             # ==========================================
+
+
 
         # Predčasné ukončenie pre účely testovania
         iter += 1
         if iter >= test_limit:
             print("=== Testovanie úspešne ukončené (dosiahnutý limit 3 záznamov). ===")
             break
+
+    # Na konci budeš mať v 'dataset_rows' kompletnú tabuľku pre Pandas
+    print(f"Hotovo. Extrahovaných {len(dataset_rows)} riadkov dát.")
+    df = pd.DataFrame(dataset_rows)
+    df.to_csv("ecg_features.csv", index=False)
 
 if __name__ == "__main__":
     main()

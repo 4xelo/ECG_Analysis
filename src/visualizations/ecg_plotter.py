@@ -137,3 +137,65 @@ class ECGPlotter:
             plt.show()
 
         plt.close(fig)
+
+    # ==========================================
+    # METÓDA NA PREHLIADANIE GRAFU
+    # ==========================================
+    def browse_signal(self, signal: np.ndarray, r_peaks: Optional[np.ndarray] = None,
+                      start_s: float = 0.0, end_s: Optional[float] = None,
+                      window_s: float = 5.0):
+        """
+        Interaktívne prechádza signál po segmentoch (napr. po 5 sekundách).
+
+        :param signal: Celý (filtrovaný) signál.
+        :param r_peaks: (Voliteľné) Indexy R-vrcholov pre vizualizáciu.
+        :param start_s: Čas začiatku prehliadania (napr. 260).
+        :param end_s: Čas konca prehliadania (napr. 300). Ak None, ide až do konca signálu.
+        :param window_s: Dĺžka jedného zobrazeného okna v sekundách.
+        """
+        # Ak nie je zadaný koniec, nastavíme ho na koniec signálu
+        total_duration = len(signal) / self.fs
+        if end_s is None or end_s > total_duration:
+            end_s = total_duration
+
+        # Ak nemáme r_peaks, vyrobíme prázdne pole, aby funkcia nepadla
+        if r_peaks is None:
+            r_peaks = np.array([])
+
+        current_start = start_s
+
+        print(f"\n=== Spúšťam prehliadač signálu ({start_s}s - {end_s}s) ===")
+        print(f"Inštrukcie: Zatvor okno grafu pre posun na ďalší segment.")
+        print(f"            V konzole napíš 'q' a stlač Enter pre ukončenie.\n")
+
+        while current_start < end_s:
+            current_end = current_start + window_s
+
+            # Orezanie konca, aby sme neprešli za požadovaný end_s
+            if current_end > end_s:
+                current_end = end_s
+
+            # Využijeme existujúcu metódu na vykreslenie
+            self.plot_peaks_on_signal(
+                signal=signal,
+                r_peaks=r_peaks,
+                start_s=current_start,
+                end_s=current_end,
+                title=f"Prehliadanie úseku {current_start:.1f}s - {current_end:.1f}s"
+            )
+
+            # Interakcia v konzole
+            if current_end >= end_s:
+                print("Dosiahli ste koniec požadovaného úseku.")
+                break
+
+            # Tu sa program zastaví a čaká na Enter (po zatvorení grafu)
+            user_input = input(
+                f"Zobrazený úsek {current_start:.1f}-{current_end:.1f}s. [Enter] pre ďalší, [q] pre koniec: ")
+
+            if user_input.lower() == 'q':
+                print("Prehliadanie ukončené používateľom.")
+                break
+
+            # Posun na ďalšie okno
+            current_start += window_s
