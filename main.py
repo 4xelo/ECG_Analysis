@@ -5,10 +5,11 @@ from tqdm import tqdm
 
 from src.config import config
 from src.data_loader import ECGLoader
-from src.preprocessing import ButterworthFilter, PanTompkinsDetector, RCenteredSegmenter, QualityControl
+from src.preprocessing import ButterworthFilter, PanTompkinsDetector, RCenteredSegmenter, QualityControl, PatientAggregator
 from src.visualizations import ECGPlotter
 from src.features import FeatureExtractionPipeline
 from src.utils import reduce_mem_usage
+
 
 
 # ==========================================
@@ -64,6 +65,7 @@ def main():
     # 1. Vytvorenie dvoch explicitných loaderov
     loader_pos = ECGLoader(data_dir=config.RAW_DATA_PATH_POSITIVE, label=1)
     loader_neg = ECGLoader(data_dir=config.RAW_DATA_PATH_NEGATIVE, label=0)
+    extracted_df = pd.read_csv("data/processed/ecg_features_final.csv")
 
     plotter = ECGPlotter(fs=config.FS)
 
@@ -77,33 +79,48 @@ def main():
     print(f"Spúšťam paralelné spracovanie pre {len(all_records)} súborov.")
     print(f"Využívam všetky dostupné jadrá CPU (n_jobs=-1)...")
 
-    # 2. PARALELNÉ SPRACOVANIE
+    # PARALELNÉ SPRACOVANIE
     # n_jobs=-1 znamená "použi všetky jadrá".
     # backend="loky" je najstabilnejší pre Python multiprocessing.
-    results_lists = Parallel(n_jobs=-1, backend="loky")(
-        delayed(process_single_record)(record)
-        for record in tqdm(all_records, desc="Extrakcia príznakov")
-    )
+    # results_lists = Parallel(n_jobs=-1, backend="loky")(
+    #     delayed(process_single_record)(record)
+    #     for record in tqdm(all_records, desc="Extrakcia príznakov")
+    # )
 
-    # 3. Spájanie výsledkov
+    #  Spájanie výsledkov
     # results_lists je zoznam zoznamov [[row1, row2], [row3, row4], ...], musíme to "sploštiť"
-    print("Spájam výsledky do jedného Datasetu...")
-    flat_results = [item for sublist in results_lists for item in sublist]
+    # print("Spájam výsledky do jedného Datasetu...")
+    # flat_results = [item for sublist in results_lists for item in sublist]
+    #
+    # # Tvorba DataFrame a Optimalizácia pamäte
+    # df = pd.DataFrame(flat_results)
+    #
+    # print(f"Pôvodná veľkosť v pamäti: {df.memory_usage().sum() / 1024 ** 2:.2f} MB")
+    #
+    # # Ak máš funkciu reduce_mem_usage v utils.py (odporúčam!)
+    # df = reduce_mem_usage(df)
+    #
+    # # Uloženie
+    # output_path = "data/processed/ecg_features_final.csv"
+    # df.to_csv(output_path, index=False)
+    #
+    # print(f"Hotovo! Dataset uložený do: {output_path}")
+    # print(f"Počet segmentov: {len(df)}")
 
-    # 4. Tvorba DataFrame a Optimalizácia pamäte
-    df = pd.DataFrame(flat_results)
+    print("\nSpúšťam agregáciu na úroveň pacienta...")
 
-    print(f"Pôvodná veľkosť v pamäti: {df.memory_usage().sum() / 1024 ** 2:.2f} MB")
+    # Inicializácia
+    aggregator = PatientAggregator(aggregations=['mean', 'std', 'min', 'max'])
 
-    # Ak máš funkciu reduce_mem_usage v utils.py (odporúčam!)
-    df = reduce_mem_usage(df)
+    # Vstupuje: df (segment level)
+    # Vystupuje: df_patient (patient level - 1 riadok na súbor)
+    df_patient = aggregator.aggregate(extracted_df, id_col='filename', label_col='label')
 
-    # 5. Uloženie
-    output_path = "data/processed/ecg_features_final.csv"
-    df.to_csv(output_path, index=False)
+    # Uloženie
+    output_patient = "data/processed/ecg_features_patient_level.csv"
+    df_patient.to_csv(output_patient, index=False)
 
-    print(f"Hotovo! Dataset uložený do: {output_path}")
-    print(f"Počet segmentov: {len(df)}")
+    print(f"Patient-level dataset uložený do: {output_patient}")
 
 if __name__ == "__main__":
     main()
