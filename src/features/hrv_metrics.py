@@ -7,18 +7,18 @@ from .base import BaseFeatureExtractor
 class HRVFeatures(BaseFeatureExtractor):
     """
     Extrahuje lokálne metriky variability srdcového rytmu (HRV).
-    Implementácia presne kopíruje logiku z diplomovej práce.
     """
 
     def extract(self, segment: np.ndarray, fs: int) -> Dict[str, float]:
         # 1. Lokálna detekcia R-vrcholov v rámci segmentu
-        # Potrebujeme ich nájsť znova, lebo 'segment' je len pole hodnôt.
-        # Parametre: min vzdialenosť 200ms, výška aspoň 50% maxima segmentu.
         distance = int(0.200 * fs)
-        height_thr = 0.5 * np.max(segment) if np.max(segment) > 0 else None
+        # Ochrana: ak je signál plochý (max=0), height_thr musí byť None alebo 0
+        seg_max = np.max(segment)
+        height_thr = 0.5 * seg_max if seg_max > 0 else None
 
         r_peaks, _ = find_peaks(segment, distance=distance, height=height_thr)
 
+        # Ak máme menej ako 2 vrcholy, nemáme žiadny interval
         if len(r_peaks) < 2:
             return {
                 "hrv_mean_rr": np.nan,
@@ -30,19 +30,29 @@ class HRVFeatures(BaseFeatureExtractor):
         # Výpočet RR intervalov v sekundách
         rr = np.diff(r_peaks) / fs
 
-        # RMSSD a pNN50 (vyžadujú aspoň 2 RR intervaly, t.j. 3 vrcholy)
+        # Inicializácia premenných
+        sdnn = 0.0
+        rmssd = np.nan
+        pnn50 = 0.0
+
+        # Výpočet metrík, len ak máme dostatok dát
+        # Na SDNN (s ddof=1) potrebujeme aspoň 2 intervaly (3 vrcholy)
         if len(rr) > 1:
             diff_rr = np.diff(rr)
+            sdnn = np.std(rr, ddof=1)
             rmssd = np.sqrt(np.mean(diff_rr ** 2))
             pnn50 = np.mean(np.abs(diff_rr) > 0.05)
         else:
+            # Ak máme len 1 interval (2 vrcholy):
+            # SDNN je 0 (žiadna variabilita)
+            sdnn = 0.0
+            # RMSSD sa nedá vypočítať (potrebuje rozdiel dvoch intervalov)
             rmssd = np.nan
-            pnn50 = 0.0  # Tvoja logika: ak je len 1 interval, pnn50 je 0
+            pnn50 = 0.0
 
-        # Návrat hodnôt (s prefixom 'hrv_' pre poriadok v datasete)
         return {
             "hrv_mean_rr": float(np.mean(rr)),
-            "hrv_sdnn": float(np.std(rr, ddof=1)),  # ddof=1 pre výberovú smerodajnú odchýlku
+            "hrv_sdnn": float(sdnn),
             "hrv_rmssd": float(rmssd),
             "hrv_pnn50": float(pnn50)
         }
