@@ -199,3 +199,15 @@ class ECGPlotter:
 
             # Posun na ďalšie okno
             current_start += window_s
+        # showcase:
+        # print(f" [*] Hľadám segment pre R-vrchol s indexom: {TARGET_R_PEAK}...")
+        #
+        # plotter.browse_signal(
+        #     signal=clean_signal,  # Celý filtrovaný signál
+        #     r_peaks=r_peaks,  # Všetky R-vrcholy
+        #     start_s=250.0,  # Začiatok (napr. kde sa ti niečo nezdá)
+        #     end_s=271.0,  # Koniec
+        #     window_s=3.0  # Veľkosť kroku (zoom)
+        # )
+        #
+        # print(" [*] Prehliadanie dokončené, pokračujem v pipeline...")
