@@ -210,4 +210,4 @@ class ECGPlotter:
         #     window_s=3.0  # Veľkosť kroku (zoom)
         # )
         #
-        # print(" [*] Prehliadanie dokončené, pokračujem v pipeline...")
+        # print(" [*] Prehliadanie dokončené, pokračujem v ml_pipeline...")
